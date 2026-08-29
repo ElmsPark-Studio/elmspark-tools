@@ -1,0 +1,11 @@
+<!doctype html><html lang="en-GB"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ellipsis hiding an element</title><link rel="stylesheet" href="_base.css">
+<style>.box{width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table{border-collapse:collapse}td{border:1px solid #ccc;padding:6px;white-space:nowrap}</style>
+</head><body>
+<!-- EXPECT: FAIL. text-overflow:ellipsis does NOT ellipsise an element child, so
+     the right-hand columns are genuinely cut off with no ellipsis shown. The
+     skip must NOT swallow this. -->
+<div class="box"><table><tr><td>Region</td><td>Plan</td><td>Specification</td><td>Price per month</td></tr></table></div>
+</body></html>
