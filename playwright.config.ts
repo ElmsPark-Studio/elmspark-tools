@@ -3,13 +3,17 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * ElmsPark plugin verification test config.
  *
- * Tests run against dev.elmspark.com by default. Override via DEV_BASE_URL
+ * Tests run against dev11b.elmspark.com by default. Override via DEV_BASE_URL
  * env var if you need to test against another install.
  *
- * Admin credentials are read from $DEV_ADMIN_USER / $DEV_ADMIN_PASSWORD.
- * The convention is to source them from ~/.config/elmspark/dev-admin.env:
+ * NB dev.elmspark.com was retired 2026-08-20 and only 301-redirects here, so a
+ * stale default reaches a live server and fails at login instead of at DNS.
  *
- *   set -a; source ~/.config/elmspark/dev-admin.env; set +a
+ * Admin credentials are read from $DEV_ADMIN_USER / $DEV_ADMIN_PASSWORD.
+ * Source them from ~/.config/elmspark/dev11b-admin.env (NOT dev-admin.env,
+ * which holds the retired host's password and is rejected by dev11b):
+ *
+ *   set -a; source ~/.config/elmspark/dev11b-admin.env; set +a
  *   npm test
  *
  * Or run the wrapper: ./run-tests.sh
@@ -23,7 +27,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: [['list'], ['html', { open: 'never' }]],
 	use: {
-		baseURL: process.env.DEV_BASE_URL || 'https://dev.elmspark.com',
+		baseURL: process.env.DEV_BASE_URL || 'https://dev11b.elmspark.com',
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		video: 'retain-on-failure',

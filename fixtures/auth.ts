@@ -3,7 +3,7 @@ import { Page, expect } from '@playwright/test';
 /**
  * Log into PageMotor admin as the configured admin user. Reads from
  * DEV_ADMIN_USER / DEV_ADMIN_PASSWORD env vars (typically sourced from
- * ~/.config/elmspark/dev-admin.env).
+ * ~/.config/elmspark/dev11b-admin.env).
  *
  * Errors loudly if either env var is missing — never falls back to a
  * default and never accepts a hardcoded credential.
@@ -12,7 +12,7 @@ export async function adminLogin(page: Page): Promise<void> {
 	const user = process.env.DEV_ADMIN_USER;
 	const password = process.env.DEV_ADMIN_PASSWORD;
 	if (!user || !password)
-		throw new Error('Set DEV_ADMIN_USER and DEV_ADMIN_PASSWORD before running tests. Source from ~/.config/elmspark/dev-admin.env.');
+		throw new Error('Set DEV_ADMIN_USER and DEV_ADMIN_PASSWORD before running tests. Source from ~/.config/elmspark/dev11b-admin.env (NOT dev-admin.env, which holds the retired dev.elmspark.com password and is silently rejected by dev11b).');
 
 	await page.goto('/admin/', { waitUntil: 'networkidle' });
 

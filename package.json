@@ -1,7 +1,7 @@
 {
   "name": "elmspark-playwright-tests",
   "version": "1.0.0",
-  "description": "End-to-end UI verification tests for ElmsPark plugins on dev.elmspark.com. Run BEFORE shipping any plugin admin / JS / form change.",
+  "description": "End-to-end UI verification tests for ElmsPark plugins on dev11b.elmspark.com. Run BEFORE shipping any plugin admin / JS / form change.",
   "private": true,
   "scripts": {
     "test": "playwright test",
