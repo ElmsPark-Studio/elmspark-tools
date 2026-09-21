@@ -1,5 +1,5 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
-import { adminLogin, openPluginSettings } from '../fixtures/auth';
+import { adminLogin, openPluginSettings, saveOptions } from '../fixtures/auth';
 
 /**
  * EP YouTube v1.0.0 smoke test.
@@ -304,9 +304,10 @@ test.describe('EP YouTube v1.0.0 — admin activation + settings round-trip', ()
 			sel.dispatchEvent(new Event('change', { bubbles: true }));
 		});
 
-		// Save
-		await page.locator('button#save-options, button.save:has-text("Save")').first().click();
-		await expect(page.locator('#options-saved')).toBeVisible({ timeout: 10000 });
+		// Save. Asserts PageMotor's own {success:true}, not the #options-saved
+		// toast -- that toast fades out over 3s and is then removed, so waiting
+		// for it races server latency. See saveOptions() for the full reason.
+		await saveOptions(page, 'EP YouTube settings');
 
 		// RELOAD — the step that catches read-back-on-render bugs
 		await page.reload();
