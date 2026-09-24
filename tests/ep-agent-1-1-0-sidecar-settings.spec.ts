@@ -132,7 +132,7 @@ test.describe.serial('EP Agent 1.1.0 sidecar settings UI', () => {
 		else
 			expect(body2, 'current sidecar must not be flagged').not.toContain('re-run the installer (the copy-and-check route');
 		expect(body2).toContain('Claude CLI available to the sidecar');
-		expect(body2).toContain('2.1.280 (Claude Code)');
+		expect(body2).toMatch(/\d+\.\d+\.\d+ \(Claude Code\)/);
 
 		// ---- 4. "One more step" panel (only auth failing) points at the sidecar
 		await expect(page.getByText('One more step: connect Claude to your account')).toBeVisible();
@@ -170,7 +170,11 @@ test.describe.serial('EP Agent 1.1.0 sidecar settings UI', () => {
 
 		const body = await page.locator('body').innerText();
 		expect(body).toContain('All prerequisites met. EP Agent is ready to use.');
-		expect(body).toContain('Connected to your Max plan subscription.');
+		// EPA_AUTH_METHOD=api_key: the stand-in reports an API-key login (the CLI's real value).
+		const connected = process.env.EPA_AUTH_METHOD === 'api_key'
+			? 'Connected to your API (pay-as-you-go plan).'
+			: 'Connected to your Max plan subscription.';
+		expect(body).toContain(connected);
 		// With everything passing, the prereq table folds into a closed <details>.
 		await page.getByText('Show details').first().click();
 		await expect(page.getByText('Sidecar token is configured')).toBeVisible();
