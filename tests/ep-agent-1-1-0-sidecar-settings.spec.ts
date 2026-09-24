@@ -125,7 +125,12 @@ test.describe.serial('EP Agent 1.1.0 sidecar settings UI', () => {
 		// ---- 3. Prereqs now come from the real sidecar: everything passes except auth
 		const body2 = await page.locator('body').innerText();
 		expect(body2).toContain('Sidecar token is configured');
-		expect(body2).toMatch(/Sidecar 1\.0\.0 responding on http:\/\/127\.0\.0\.1:18770/);
+		expect(body2).toMatch(/Sidecar \d+\.\d+\.\d+ responding on http:\/\/127\.0\.0\.1:18770/);
+		// An older running sidecar gets a note (not a failure) saying how to update it.
+		if (process.env.EPA_SIDECAR_STALE === '1')
+			expect(body2, 'stale sidecar must be flagged').toContain('re-run the installer (the copy-and-check route in the Sidecar section) to update it');
+		else
+			expect(body2, 'current sidecar must not be flagged').not.toContain('re-run the installer (the copy-and-check route');
 		expect(body2).toContain('Claude CLI available to the sidecar');
 		expect(body2).toContain('2.1.280 (Claude Code)');
 
