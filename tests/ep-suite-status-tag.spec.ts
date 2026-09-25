@@ -18,13 +18,41 @@ import { adminLogin, saveOptions } from '../fixtures/auth';
 
 const SHOTS = process.env.EP_SHOT_DIR || 'test-results';
 
-const PILOTS: { cls: string; group: string; box: string }[] = [
+// Every group carrying the tag. `defaultOn`: the plugin treats "never saved" as on.
+// A plugin that is not active on the target host is skipped (and says so), so the same
+// file serves dev11b (which carries only some of these) and the local 0.11.5 rig.
+const PILOTS: { cls: string; group: string; box: string; defaultOn?: boolean }[] = [
 	{ cls: 'EP_Local_Business', group: 'group-business', box: 'enable_localbusiness-enabled' },
 	{ cls: 'EP_Newsletter', group: 'group-forms', box: 'enable_subscribe_form-enabled' },
 	{ cls: 'EP_Newsletter', group: 'group-auto-newsletter', box: 'auto_newsletter_enabled-enabled' },
 	{ cls: 'EP_Booking', group: 'group-public', box: 'public_pages_enabled-enabled' },
 	{ cls: 'EP_Booking', group: 'group-form', box: 'enable_booking_form-enabled' },
+	{ cls: 'EP_Affiliate', group: 'group-recurring', box: 'recurring_commissions-enabled' },
+	{ cls: 'EP_Affiliate', group: 'group-newsletter', box: 'newsletter_auto_subscribe-enabled' },
+	{ cls: 'EP_Agent_Jobs', group: 'group-buzz', box: 'buzz_enabled-on' },
+	{ cls: 'EP_Attribution', group: 'group-attribution', box: 'enable_attribution-enabled' },
+	{ cls: 'EP_Booking_Zoom', group: 'group-zoom-api', box: 'zoom_enabled-enabled' },
+	{ cls: 'EP_Brain_Vault', group: 'group-bv-enable', box: 'bv_enabled-enabled' },
+	{ cls: 'EP_Concierge', group: 'group-assistant', box: 'enabled-enabled' },
+	{ cls: 'EP_Ecommerce_PayPal', group: 'group-paypal-enable', box: 'paypal_enabled-enabled' },
+	{ cls: 'EP_Ecommerce_Stripe', group: 'group-stripe-enable', box: 'stripe_enabled-enabled' },
+	{ cls: 'EP_Ecommerce_Subscriptions', group: 'group-newsletter', box: 'newsletter_opt_in-enabled' },
+	{ cls: 'EP_Email', group: 'group-central-blocklist', box: 'enable_central_blocklist-enabled' },
+	{ cls: 'EP_Gallery_EXIF', group: 'group-exif', box: 'show_exif-enabled' },
+	{ cls: 'EP_GDPR', group: 'group-consent-banner', box: 'enable_banner-enabled' },
+	{ cls: 'EP_GDPR', group: 'group-dsr', box: 'enable_dsr_form-enabled' },
+	{ cls: 'EP_IndexNow', group: 'group-indexnow', box: 'enabled-on' },
+	{ cls: 'EP_Locations', group: 'group-master', box: 'enable_locations-enabled' },
+	{ cls: 'EP_Maintenance', group: 'group-mode', box: 'mode-enabled' },
+	{ cls: 'EP_Media_Storage', group: 'group-ms-enable', box: 'ms_enabled-enabled' },
+	{ cls: 'EP_Membership', group: 'group-registration', box: 'enable_registration-enabled', defaultOn: true },
 ];
+
+async function isActive(page: Page, cls: string) {
+	await page.goto('/admin/plugins/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+	await page.locator('form input[name="plugin"]').first().waitFor({ state: 'attached' });
+	return (await page.locator(`form input[name="plugin"][value="${cls}"]`).count()) > 0;
+}
 
 async function openSettings(page: Page, cls: string) {
 	await page.goto('/admin/plugins/', { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -81,6 +109,7 @@ test.describe('EP Suite settings-group status tag', () => {
 			const errors: string[] = [];
 			page.on('pageerror', e => errors.push(e.message));
 			await adminLogin(page);
+			test.skip(!(await isActive(page, pilot.cls)), `${pilot.cls} is not active on this host`);
 			await openSettings(page, pilot.cls);
 
 			const cls = pilot.cls;
@@ -93,8 +122,12 @@ test.describe('EP Suite settings-group status tag', () => {
 			const original = await box.isChecked();
 			const load = await tagState(page, pilot.group);
 			console.log(`${cls} ${pilot.group}: saved=${original ? 'on' : 'off'} tag=${JSON.stringify(load)}`);
-			expect(load.state, 'tag on load matches the saved checkbox').toBe(original ? 'on' : 'off');
-			expect(load.text).toBe(original ? 'On' : 'Off');
+			// A default-on plugin never saved renders the box unticked while its runtime (and
+			// the tag) say on; any saved row makes the two agree again.
+			const expected = original || (pilot.defaultOn && load.state === 'on') ? 'on' : 'off';
+			if (expected === 'on' && !original) console.log(`${cls}: never saved, default on`);
+			expect(load.state, 'tag on load matches the saved checkbox').toBe(expected);
+			expect(load.text).toBe(expected === 'on' ? 'On' : 'Off');
 			expect(load.unsaved).toBe(false);
 
 			// 2. Visible while collapsed, between the title and the chevron, no inline style.
@@ -204,6 +237,41 @@ test.describe('EP Suite settings-group status tag', () => {
 		expect(await run({ tick: true, start: '', end: '2026-09-25T11:59' }), 'ended a minute ago').toBe('Ended|ended');
 		expect(await run({ tick: true, start: '2026-09-01', end: '2026-09-25' }), 'bare end date runs to 23:59').toBe('Showing now|live');
 		expect(await run({ tick: true, start: '', end: '' }), 'dated group, no dates set').toBe('Showing now|live');
+		expect(errors, 'no page errors').toEqual([]);
+	});
+
+	test('default-on, never saved: holds the server state until the box changes', async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', e => errors.push(e.message));
+		await adminLogin(page);
+		await openSettings(page, 'EP_Newsletter');
+		// EP Membership registration: the box renders unticked while registration runs,
+		// because nothing is saved yet. The tag must say On without an unsaved mark.
+		const read = () => page.evaluate(() => {
+			const t = document.querySelector('#ep-test-dflt .ep-status-tag')!;
+			return t.textContent + '|' + (t.className.match(/--(on|off)\b/) || [])[1] + (t.classList.contains('ep-status-tag--unsaved') ? '|unsaved' : '');
+		});
+		await page.evaluate(() => {
+			const host = document.createElement('div');
+			host.id = 'ep-test-dflt';
+			host.innerHTML = '<input type="checkbox" id="EP_Dflt-reg-enabled">'
+				+ '<span class="ep-status-tag ep-status-tag--on" data-ep-status=\'' + JSON.stringify({
+					field: 'EP_Dflt-reg', option: 'enabled', start: '', end: '', dated: false, now: '2026-09-25T12:00',
+					saved: 'on', dflt: true,
+					text: { on: 'On', off: 'Off', live: 'Showing now', scheduled: 'Scheduled', ended: 'Ended', unsaved: 'Not saved yet: press Save Settings to apply' },
+				}) + '\'>On</span>';
+			document.querySelector('form.pm-options-form')!.appendChild(host);
+			(window as any).epSuiteStatusTag.scan();
+		});
+		expect(await read(), 'untouched: server state, no unsaved mark').toBe('On|on');
+		const toggle = () => page.evaluate(() => {
+			const cb = document.getElementById('EP_Dflt-reg-enabled') as HTMLInputElement;
+			cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+		await toggle();
+		expect(await read(), 'ticked: still on, nothing to warn about').toBe('On|on');
+		await toggle();
+		expect(await read(), 'back to untouched: server state again').toBe('On|on');
 		expect(errors, 'no page errors').toEqual([]);
 	});
 
