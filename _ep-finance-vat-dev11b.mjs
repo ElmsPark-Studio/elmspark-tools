@@ -13,6 +13,9 @@
  *   X1 the Tax tab's VAT return for Jul to Sep 2026 shows box 1 = £20.00 from that sale
  *   X2 and names dev11b's existing shop orders (Sep 2026, posted gross) as sales
  *      with no VAT code
+ *   K  EP Finance Tax UK's VAT scheme is set to standard for the return (dev11b has
+ *      none, and a return is never worked out without one), then put back
+ *   N1 while it has no scheme, EP Finance's VAT registration block says so
  *   I1 EP Finance Importer: the Rules form has a VAT rate menu; a rule with a VAT
  *      rate is listed with "VAT rate Standard rate 20%"
  *   C  clean up: the probe sale and both probe rules are deleted through the
@@ -76,7 +79,17 @@ async function pickByText(sel, sub) {
 	}, { sel, sub });
 }
 
-let groupId = 0; const ruleIds = [];
+let groupId = 0; const ruleIds = []; let priorScheme = null;
+async function setScheme(v) {
+	await openSettings('EP_Finance_Tax_UK');
+	const sel = p.locator('select[name="EP_Finance_Tax_UK[scheme]"]');
+	const was = await sel.inputValue();
+	await sel.selectOption(v);
+	await p.locator('#save-options, button:has-text("Save Settings")').first().click();
+	await p.waitForLoadState('load'); await p.waitForTimeout(3000);
+	await openSettings('EP_Finance_Tax_UK');
+	return { was, now: await p.locator('select[name="EP_Finance_Tax_UK[scheme]"]').inputValue() };
+}
 try {
 	// ── login ──
 	await p.goto(BASE + '/admin/', { waitUntil: 'load' });
@@ -99,6 +112,12 @@ try {
 	body = await p.locator('body').innerText();
 	check('S2 VAT registered + 2026-04-01 persist after Save and reload', reg === 'on' && from === '2026-04-01', `${reg} ${from}`);
 	check('S2 the block now says VAT is recorded from 2026-04-01', /VAT is recorded on entries dated 2026-04-01 or later/.test(body));
+	// N1 only means something while Tax UK has no scheme (dev11b's state on 2 Oct).
+	const schemeNow = await (async () => { await openSettings('EP_Finance_Tax_UK'); return p.locator('select[name="EP_Finance_Tax_UK[scheme]"]').inputValue(); })();
+	await openSettings('EP_Finance');
+	body = await p.locator('body').innerText();
+	if (schemeNow === '') check('N1 with no VAT scheme in Tax UK, the VAT registration block says no return is worked out until one is chosen', /no VAT scheme is chosen/.test(body));
+	else console.log('[SKIP] N1 Tax UK already has a scheme (' + schemeNow + ')');
 
 	// ── T: New transaction ──
 	await tab('.ep-fin-tab', 'transactions');
@@ -132,7 +151,9 @@ try {
 	check('T3 a VAT rate on an entry dated 2026-03-15 is refused, saying why', jb && jb.reason === 'vat_not_registered' && /before your VAT registration date/.test(m2), m2);
 	if (jb && jb.group_id) await ajax('EP_Finance', 'delete-group', { id: String(jb.group_id) });
 
-	// ── X: Tax tab ──
+	// ── K + X: Tax tab ──
+	const k = await setScheme('standard'); priorScheme = k.was;
+	check('K Tax UK VAT scheme set to standard for the return', k.now === 'standard', `was "${k.was}", now "${k.now}"`);
 	await openSettings('EP_Finance');
 	await tab('.ep-fin-tab', 'tax');
 	await p.selectOption('#ep-fin-tax-period', '2026Q3').catch(() => {});
@@ -172,10 +193,12 @@ try {
 		await openSettings('EP_Finance');
 		const reg = await p.locator('select[name="EP_Finance[vat_registered]"]').inputValue();
 		check('C VAT settings put back to not registered', reg === '' && /VAT is not being recorded/.test(await p.locator('body').innerText()), reg);
-		if (ruleIds.length) {
-			await openSettings('EP_Finance_Importer'); await tab('.ep-fin-imp-tab', 'rules');
-			check('C the probe rules are gone', !/EPFINVATPROBE/.test(await p.locator('#ep-fi-rules').innerText()));
+		if (priorScheme !== null) {
+			const r = await setScheme(priorScheme);
+			check('C Tax UK VAT scheme put back', r.now === priorScheme, `"${r.now}"`);
 		}
+		await openSettings('EP_Finance_Importer'); await tab('.ep-fin-imp-tab', 'rules');
+		check('C no probe rule is left (' + ruleIds.length + ' made)', !/EPFINVATPROBE/.test(await p.locator('#ep-fi-rules').innerText()));
 	} catch (e) { check('cleanup', false, e.message); }
 	check('P no uncaught JavaScript errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 	console.log(fail ? `\nFAILED: ${fail} check(s)` : '\nALL CHECKS PASSED');
