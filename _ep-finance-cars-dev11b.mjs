@@ -1,5 +1,5 @@
 /**
- * EP Finance Tax UK 0.1.15 on dev11b: company cars through PageMotor's real settings screen.
+ * EP Finance Tax UK 0.1.15/0.1.16 on dev11b: company cars through PageMotor's real settings screen.
  *
  *   K0 logged in; the Tax UK settings show the Company cars section with three car slots
  *   K1 a test car (petrol, 120 g/km, £30,000, company pays private fuel) saves and survives a reload
@@ -7,6 +7,7 @@
  *      Class 1A £2,664.00 (15% of £17,760), reported on the P11D
  *   K3 the 2027-28 table shows £750.00 a month for the car and says the fuel figure is not yet published
  *   K4 at 390px the settings page does not scroll sideways
+ *   K5 (0.1.16) the car table cells are padded; K6 at 390px each table fits its box
  *   C  car 1 is put back to how it was; no uncaught JavaScript errors
  *
  * Run: cd ~/Developer/elmspark/tools/playwright-tests && set -a && source ~/.config/elmspark/dev11b-admin.env && set +a && node _ep-finance-cars-dev11b.mjs
@@ -80,11 +81,15 @@ try {
 	check('K2b reported on the P11D by 6 July 2027, Class 1A paid by 22 July 2027', /P11D and P11D\(b\) by 6 July 2027/.test(t2627) && /22 July 2027/.test(t2627));
 	check('K3 2027-28: £750.00 a month for the car; fuel not yet published', /£750\.00 a month/.test(t2728) && /not yet published/.test(t2728), t2728.replace(/\s+/g, ' ').slice(0, 260));
 	await p.screenshot({ path: OUT + '/cars-dev11b-1280.png', fullPage: true });
+	const pad = await p.evaluate(() => { const td = document.querySelector('.ep-fin-tax-car-table td'); return td ? parseFloat(getComputedStyle(td).paddingLeft) : -1; });
+	check('K5 the car table cells are padded (0.1.16 stylesheet loaded)', pad >= 5, `paddingLeft ${pad}px`);
 
 	await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(800);
 	const w = await p.evaluate(() => ({ vw: document.documentElement.clientWidth, docW: document.documentElement.scrollWidth,
 		panelRight: Math.round((document.querySelector('.ep-fin-tax-cars') || document.body).getBoundingClientRect().right) }));
 	check('K4 at 390px the cars panel fits (no sideways scroll from it)', w.panelRight <= w.vw + 1, JSON.stringify(w));
+	const clip = await p.evaluate(() => [...document.querySelectorAll('.ep-fin-tax-car-scroll')].map(s => s.scrollWidth - s.clientWidth));
+	check('K6 at 390px every car table fits its box, so no column is clipped', clip.length > 0 && clip.every(x => x <= 1), JSON.stringify(clip));
 	await p.screenshot({ path: OUT + '/cars-dev11b-390.png', fullPage: true });
 	await p.setViewportSize({ width: 1280, height: 900 });
 } catch (e) {
